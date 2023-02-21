@@ -41,7 +41,10 @@ class RetrieveMangaAPI(APIView):
         if source.lower() == 'mangabat':
             manga_url = request.GET.get('url')
             soup = fetch_until_success(manga_url)
-            description = soup.find("meta", {"name": "description"}).attrs.get("content")
+            title = soup.find('div', {'class': 'story-info-right'})
+            title = title.find('h1')
+            manga['title'] = title.text
+            description = soup.find("div", {"class": "panel-story-info-description"}).text
             description = description.split(":")
             description = "".join(description[1:]).strip()
             manga['description'] = description
