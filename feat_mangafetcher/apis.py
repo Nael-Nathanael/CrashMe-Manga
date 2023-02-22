@@ -8,9 +8,10 @@ from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from feat_mangafetcher.models import MangaModel
+from feat_mangafetcher.models import MangaModel, MangaChapter
 from utils.helper import fetch_until_success
-from utils.source__mangabat.mangabat_utils import parse_list_from_soup, parse_manga_detail_by_url
+from utils.source__mangabat.mangabat_utils import parse_list_from_soup, parse_manga_detail_by_url, \
+    parse_chapter_pages_by_url
 
 
 class ListLatestMangaAPI(APIView):
@@ -66,18 +67,28 @@ class RetrieveMangaAPI(APIView):
 
 class RetrieveChapterAPI(APIView):
     def get(self, request, source):
-        pages = []
+        chapter_url = request.GET.get('url')
+        forced_update = int(request.GET.get('update', 0)) == 1
+        instance = MangaChapter.objects.filter(url=chapter_url)
+
+        if not instance.exists():
+            result = parse_chapter_pages_by_url(request, chapter_url, source)
+            MangaChapter.objects.create(
+                url=chapter_url,
+                result=result,
+                lastFetchedAt=timezone.now()
+            )
+            return JsonResponse(result, safe=False)
+
+        instance = instance.get()
+
+        if not instance.should_update() and not forced_update:
+            return JsonResponse(instance.result, safe=False)
+
         if source.lower() == 'mangabat':
-            chapter_url = request.GET.get('url')
-            soup = fetch_until_success(chapter_url)
-            container_soup = soup.find("div", {"class": "container-chapter-reader"})
-            images_soup = container_soup.find_all("img", recursive=False)
-            proxyget_url = request.build_absolute_uri(reverse('proxyget', args=[source]))
-            for image_soup in images_soup:
-                pages.append(
-                    f"{proxyget_url}?url={image_soup.attrs.get('src')}"
-                )
-            return JsonResponse(pages, safe=False)
+            result = parse_chapter_pages_by_url(request, chapter_url, source)
+            instance.set_data(result)
+            return JsonResponse(result, safe=False)
 
         return Response(status=status.HTTP_404_NOT_FOUND)
 

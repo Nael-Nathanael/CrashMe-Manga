@@ -1,5 +1,7 @@
 from datetime import datetime
 
+from django.urls import reverse
+
 from utils.helper import fetch_until_success
 
 
@@ -60,3 +62,16 @@ def parse_manga_detail_by_url(manga_url):
 
     manga['chapters'] = chapters
     return manga
+
+
+def parse_chapter_pages_by_url(request, chapter_url, source):
+    pages = []
+    soup = fetch_until_success(chapter_url)
+    container_soup = soup.find("div", {"class": "container-chapter-reader"})
+    images_soup = container_soup.find_all("img", recursive=False)
+    proxyget_url = request.build_absolute_uri(reverse('proxyget', args=[source]))
+    for image_soup in images_soup:
+        pages.append(
+            f"{proxyget_url}?url={image_soup.attrs.get('src')}"
+        )
+    return pages
