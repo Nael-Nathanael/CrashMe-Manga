@@ -2,7 +2,6 @@ from io import BytesIO
 
 import requests
 from django.http import JsonResponse, FileResponse
-from django.urls import reverse
 from django.utils import timezone
 from rest_framework import status
 from rest_framework.response import Response
@@ -44,13 +43,15 @@ class RetrieveMangaAPI(APIView):
         instance = MangaModel.objects.filter(url=manga_url)
 
         if not instance.exists():
-            result = parse_manga_detail_by_url(manga_url)
-            MangaModel.objects.create(
-                url=manga_url,
-                result=result,
-                lastFetchedAt=timezone.now()
-            )
-            return JsonResponse(result, safe=False)
+            if source.lower() == 'mangabat':
+                result = parse_manga_detail_by_url(manga_url)
+                MangaModel.objects.create(
+                    url=manga_url,
+                    result=result,
+                    lastFetchedAt=timezone.now()
+                )
+                return JsonResponse(result, safe=False)
+            return Response(status=status.HTTP_404_NOT_FOUND)
 
         instance = instance.get()
 
@@ -72,13 +73,15 @@ class RetrieveChapterAPI(APIView):
         instance = MangaChapter.objects.filter(url=chapter_url)
 
         if not instance.exists():
-            result = parse_chapter_pages_by_url(request, chapter_url, source)
-            MangaChapter.objects.create(
-                url=chapter_url,
-                result=result,
-                lastFetchedAt=timezone.now()
-            )
-            return JsonResponse(result, safe=False)
+            if source.lower() == 'mangabat':
+                result = parse_chapter_pages_by_url(request, chapter_url, source)
+                MangaChapter.objects.create(
+                    url=chapter_url,
+                    result=result,
+                    lastFetchedAt=timezone.now()
+                )
+                return JsonResponse(result, safe=False)
+            return Response(status=status.HTTP_404_NOT_FOUND)
 
         instance = instance.get()
 
