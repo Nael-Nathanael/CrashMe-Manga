@@ -1,15 +1,16 @@
-from datetime import datetime
 from io import BytesIO
 
 import requests
 from django.http import JsonResponse, FileResponse
 from django.urls import reverse
+from django.utils import timezone
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from feat_mangafetcher.models import MangaModel
 from utils.helper import fetch_until_success
-from utils.source__mangabat.utils import parse_list_from_soup
+from utils.source__mangabat.mangabat_utils import parse_list_from_soup, parse_manga_detail_by_url
 
 
 class ListLatestMangaAPI(APIView):
@@ -37,48 +38,28 @@ class SearchMangaAPI(APIView):
 
 class RetrieveMangaAPI(APIView):
     def get(self, request, source):
-        manga = {}
+        manga_url = request.GET.get('url').lower()
+        forced_update = int(request.GET.get('update', 0)) == 1
+        instance = MangaModel.objects.filter(url=manga_url)
+
+        if not instance.exists():
+            result = parse_manga_detail_by_url(manga_url)
+            MangaModel.objects.create(
+                url=manga_url,
+                result=result,
+                lastFetchedAt=timezone.now()
+            )
+            return JsonResponse(result, safe=False)
+
+        instance = instance.get()
+
+        if not instance.should_update() and not forced_update:
+            return JsonResponse(instance.result, safe=False)
+
         if source.lower() == 'mangabat':
-            manga_url = request.GET.get('url')
-            soup = fetch_until_success(manga_url)
-            title = soup.find('div', {'class': 'story-info-right'})
-            title = title.find('h1')
-            manga['title'] = title.text
-            description = soup.find("div", {"class": "panel-story-info-description"}).text
-            description = description.split(":")
-            description = "".join(description[1:]).strip()
-            manga['description'] = description
-            image_soup = soup.find("span", {"class": "info-image"})
-            image_soup = image_soup.find("img")
-            manga['cover'] = image_soup.attrs.get("src")
-            info_soup = soup.find("table", {"class": "variations-tableInfo"})
-            info_soup = info_soup.find("tbody")
-            info_soups = info_soup.find_all("tr")
-            for info_soup in info_soups:
-                key_val = info_soup.find_all("td")
-                key = key_val[0].text.lower()
-                val = key_val[1].text
-                if 'author' in key:
-                    manga['author'] = val.strip()
-                elif 'status' in key:
-                    manga['status'] = val.strip()
-            chapters = []
-            chapters_soup = soup.find("ul", {"class": "row-content-chapter"})
-            chapters_soup = chapters_soup.find_all("li")
-
-            for chapter_soup in chapters_soup:
-                chapter = {}
-                url_soup = chapter_soup.find("a")
-                chapter['label'] = url_soup.text.strip()
-                chapter['url'] = url_soup.attrs.get('href')
-                external_published_at_soup = chapter_soup.find("span")
-                external_published_at = external_published_at_soup.attrs.get("title")
-                date_obj = datetime.strptime(external_published_at, "%b %d,%Y %H:%M")
-                chapter['publishedAt'] = date_obj.strftime("%Y-%m-%d %H:%M")
-                chapters.append(chapter)
-
-            manga['chapters'] = chapters
-            return JsonResponse(manga, safe=False)
+            result = parse_manga_detail_by_url(manga_url)
+            instance.set_data(result)
+            return JsonResponse(result, safe=False)
 
         return Response(status=status.HTTP_404_NOT_FOUND)
 
