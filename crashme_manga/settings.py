@@ -40,6 +40,7 @@ INSTALLED_APPS = [
     'corsheaders',
 
     'feat_mangafetcher',
+    'v2'
 ]
 
 MIDDLEWARE = [

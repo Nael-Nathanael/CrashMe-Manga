@@ -8,4 +8,5 @@ urlpatterns = [
     path('manga/<str:source>/', RetrieveMangaAPI.as_view()),
     path('chapter/<str:source>/', RetrieveChapterAPI.as_view()),
     path('proxyget/<str:source>/', ProxyGetAPI.as_view(), name='proxyget'),
+    path('proxyget/', ProxyGetAPI.as_view(), name='proxygetv2'),
 ]
